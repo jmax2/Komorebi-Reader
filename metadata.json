@@ -1,0 +1,5 @@
+{
+  "name": "Komorebi Reader",
+  "description": "A bilingual Japanese-English reading application with word-level translations and AI-powered content generation.",
+  "requestFramePermissions": []
+}
