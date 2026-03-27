@@ -25,7 +25,7 @@ import { Sentence, ViewMode, Word } from './types';
 import { MOCK_DATA } from './constants';
 import { SentenceBlock } from './components/SentenceBlock';
 import { Tooltip } from './components/Tooltip';
-import { translateAndParse, generateStory, textToSpeech } from './lib/gemini';
+import { translateAndParse, generateStory, textToSpeech, playPCM } from './lib/gemini';
 import { cn } from './lib/utils';
 
 export default function App() {
@@ -141,17 +141,13 @@ export default function App() {
     
     try {
       const fullText = sentences.map(s => s.ja_sentence).join(' ');
-      const audioUrl = await textToSpeech(fullText);
-      if (audioUrl) {
-        const audio = new Audio(audioUrl);
-        audio.onended = () => setIsPlayingAll(false);
-        audio.onerror = () => setIsPlayingAll(false);
-        await audio.play();
-      } else {
-        setIsPlayingAll(false);
+      const base64Data = await textToSpeech(fullText);
+      if (base64Data) {
+        await playPCM(base64Data);
       }
     } catch (err) {
       console.error("Failed to play all audio", err);
+    } finally {
       setIsPlayingAll(false);
     }
   };

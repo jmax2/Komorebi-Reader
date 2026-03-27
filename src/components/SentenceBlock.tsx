@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Volume2, Loader2 } from 'lucide-react';
 import { Sentence, ViewMode, Word } from '../types';
 import { cn } from '../lib/utils';
-import { textToSpeech } from '../lib/gemini';
+import { textToSpeech, playPCM } from '../lib/gemini';
 
 interface SentenceBlockProps {
   sentence: Sentence;
@@ -19,17 +19,13 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
     
     setIsPlaying(true);
     try {
-      const audioUrl = await textToSpeech(sentence.ja_sentence);
-      if (audioUrl) {
-        const audio = new Audio(audioUrl);
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => setIsPlaying(false);
-        await audio.play();
-      } else {
-        setIsPlaying(false);
+      const base64Data = await textToSpeech(sentence.ja_sentence);
+      if (base64Data) {
+        await playPCM(base64Data);
       }
     } catch (err) {
       console.error("Failed to play audio", err);
+    } finally {
       setIsPlaying(false);
     }
   };
