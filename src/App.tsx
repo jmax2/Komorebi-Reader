@@ -17,22 +17,27 @@ import {
   FileText,
   X,
   Moon,
-  Sun
+  Sun,
+  Sparkles,
+  Volume2
 } from 'lucide-react';
 import { Sentence, ViewMode, Word } from './types';
 import { MOCK_DATA } from './constants';
 import { SentenceBlock } from './components/SentenceBlock';
 import { Tooltip } from './components/Tooltip';
-import { translateAndParse } from './lib/gemini';
+import { translateAndParse, generateStory, textToSpeech } from './lib/gemini';
 import { cn } from './lib/utils';
 
 export default function App() {
   const [sentences, setSentences] = useState<Sentence[]>(MOCK_DATA);
   const [viewMode, setViewMode] = useState<ViewMode>('over-under');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isPlayingAll, setIsPlayingAll] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<{ word: Word; rect: DOMRect; isJapanese: boolean } | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [storyTopic, setStoryTopic] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sourceLang, setSourceLang] = useState<'ja' | 'en'>('ja');
 
@@ -112,6 +117,45 @@ export default function App() {
     }
   };
 
+  const handleGenerateStory = async () => {
+    if (!storyTopic.trim()) return;
+    setIsProcessing(true);
+    try {
+      const newSentences = await generateStory(storyTopic);
+      if (newSentences.length > 0) {
+        setSentences(newSentences);
+        setIsGenerateModalOpen(false);
+        setStoryTopic('');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate story with AI');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePlayAll = async () => {
+    if (isPlayingAll || sentences.length === 0) return;
+    setIsPlayingAll(true);
+    
+    try {
+      const fullText = sentences.map(s => s.ja_sentence).join(' ');
+      const audioUrl = await textToSpeech(fullText);
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => setIsPlayingAll(false);
+        audio.onerror = () => setIsPlayingAll(false);
+        await audio.play();
+      } else {
+        setIsPlayingAll(false);
+      }
+    } catch (err) {
+      console.error("Failed to play all audio", err);
+      setIsPlayingAll(false);
+    }
+  };
+
   return (
     <div className={cn("min-h-screen pb-24 transition-colors duration-300", isDarkMode ? "dark" : "")} onClick={() => setActiveTooltip(null)}>
       {/* Sticky Toolbar */}
@@ -125,6 +169,18 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-4">
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePlayAll(); }}
+              disabled={isPlayingAll || sentences.length === 0}
+              className={cn(
+                "p-2 rounded-lg transition-colors",
+                isPlayingAll ? "text-orange-500 bg-orange-50 dark:bg-orange-900/20" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+              )}
+              title="Play all sentences"
+            >
+              {isPlayingAll ? <Loader2 size={18} className="animate-spin" /> : <Volume2 size={18} />}
+            </button>
+
             <button
               onClick={(e) => { e.stopPropagation(); setIsDarkMode(!isDarkMode); }}
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -161,6 +217,13 @@ export default function App() {
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-800 mx-1 hidden sm:block" />
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsGenerateModalOpen(true); }}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+              >
+                <Sparkles size={16} />
+                <span className="hidden sm:inline">AI Story</span>
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setIsImportModalOpen(true); }}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -327,6 +390,91 @@ export default function App() {
                       ) : (
                         <>
                           Process Text
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Generate Modal */}
+      <AnimatePresence>
+        {isGenerateModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsGenerateModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">AI Story Generator</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Enter a topic to generate a story.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsGenerateModalOpen(false)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <input
+                  type="text"
+                  value={storyTopic}
+                  onChange={(e) => setStoryTopic(e.target.value)}
+                  placeholder="e.g., A robot learning to cook"
+                  className="w-full p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-gray-900 dark:text-gray-100"
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerateStory()}
+                />
+
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Gemini 3.1 Pro
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setIsGenerateModalOpen(false)}
+                      className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleGenerateStory}
+                      disabled={isProcessing || !storyTopic.trim()}
+                      className={cn(
+                        "px-8 py-2.5 bg-orange-500 text-white text-sm font-medium rounded-xl shadow-lg transition-all flex items-center gap-2",
+                        (isProcessing || !storyTopic.trim()) ? "opacity-50 cursor-not-allowed" : "hover:bg-orange-600 active:scale-95 shadow-orange-200 dark:shadow-orange-900/20"
+                      )}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          Generate
                         </>
                       )}
                     </button>

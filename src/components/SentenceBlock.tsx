@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Volume2, Loader2 } from 'lucide-react';
 import { Sentence, ViewMode, Word } from '../types';
 import { cn } from '../lib/utils';
+import { textToSpeech } from '../lib/gemini';
 
 interface SentenceBlockProps {
   sentence: Sentence;
@@ -9,6 +11,29 @@ interface SentenceBlockProps {
 }
 
 export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode, onWordClick }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handlePlayAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isPlaying) return;
+    
+    setIsPlaying(true);
+    try {
+      const audioUrl = await textToSpeech(sentence.ja_sentence);
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => setIsPlaying(false);
+        await audio.play();
+      } else {
+        setIsPlaying(false);
+      }
+    } catch (err) {
+      console.error("Failed to play audio", err);
+      setIsPlaying(false);
+    }
+  };
+
   const renderWords = (words: Word[], isJapanese: boolean) => {
     return words.map((word, idx) => (
       <span
@@ -30,7 +55,17 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
 
   if (viewMode === 'side-by-side') {
     return (
-      <div className="grid grid-cols-2 gap-8 py-8 border-b border-gray-50 dark:border-gray-800 items-start group">
+      <div className="grid grid-cols-2 gap-8 py-8 border-b border-gray-50 dark:border-gray-800 items-start group relative">
+        <div className="absolute -left-12 top-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handlePlayAudio}
+            disabled={isPlaying}
+            className="p-2 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full transition-colors"
+            title="Read aloud"
+          >
+            {isPlaying ? <Loader2 size={20} className="animate-spin" /> : <Volume2 size={20} />}
+          </button>
+        </div>
         <div className="text-xl leading-relaxed text-gray-800 dark:text-gray-200 font-japanese">
           {renderWords(sentence.words, true)}
         </div>
@@ -42,7 +77,17 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
   }
 
   return (
-    <div className="flex flex-col gap-3 py-8 border-b border-gray-50 dark:border-gray-800 group">
+    <div className="flex flex-col gap-3 py-8 border-b border-gray-50 dark:border-gray-800 group relative">
+      <div className="absolute -left-12 top-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={handlePlayAudio}
+          disabled={isPlaying}
+          className="p-2 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full transition-colors"
+          title="Read aloud"
+        >
+          {isPlaying ? <Loader2 size={20} className="animate-spin" /> : <Volume2 size={20} />}
+        </button>
+      </div>
       <div className="text-2xl leading-relaxed text-gray-900 dark:text-gray-100 font-japanese">
         {renderWords(sentence.words, true)}
       </div>
