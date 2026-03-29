@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Volume2, Loader2 } from 'lucide-react';
 import { Sentence, ViewMode, Word } from '../types';
 import { cn } from '../lib/utils';
-import { textToSpeech, playPCM } from '../lib/gemini';
+import { textToSpeech, playPCM, speakWithBrowser } from '../lib/gemini';
 
 interface SentenceBlockProps {
   sentence: Sentence;
@@ -22,9 +22,18 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
       const base64Data = await textToSpeech(sentence.ja_sentence);
       if (base64Data) {
         await playPCM(base64Data);
+      } else {
+        // Fallback to browser TTS
+        await speakWithBrowser(sentence.ja_sentence);
       }
     } catch (err) {
       console.error("Failed to play audio", err);
+      // Try fallback on error too
+      try {
+        await speakWithBrowser(sentence.ja_sentence);
+      } catch (fallbackErr) {
+        console.error("Fallback audio failed", fallbackErr);
+      }
     } finally {
       setIsPlaying(false);
     }
@@ -52,7 +61,7 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
   if (viewMode === 'side-by-side') {
     return (
       <div className="grid grid-cols-2 gap-8 py-8 border-b border-gray-50 dark:border-gray-800 items-start group relative">
-        <div className="absolute -left-12 top-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-0 top-6 opacity-40 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handlePlayAudio}
             disabled={isPlaying}
@@ -62,7 +71,7 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
             {isPlaying ? <Loader2 size={20} className="animate-spin" /> : <Volume2 size={20} />}
           </button>
         </div>
-        <div className="text-xl leading-relaxed text-gray-800 dark:text-gray-200 font-japanese">
+        <div className="text-xl leading-relaxed text-gray-800 dark:text-gray-200 font-japanese pr-8">
           {renderWords(sentence.words, true)}
         </div>
         <div className="text-lg leading-relaxed text-gray-600 dark:text-gray-400 font-sans">
@@ -74,7 +83,7 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
 
   return (
     <div className="flex flex-col gap-3 py-8 border-b border-gray-50 dark:border-gray-800 group relative">
-      <div className="absolute -left-12 top-10 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute right-0 top-6 opacity-40 group-hover:opacity-100 transition-opacity">
         <button
           onClick={handlePlayAudio}
           disabled={isPlaying}
@@ -84,7 +93,7 @@ export const SentenceBlock: React.FC<SentenceBlockProps> = ({ sentence, viewMode
           {isPlaying ? <Loader2 size={20} className="animate-spin" /> : <Volume2 size={20} />}
         </button>
       </div>
-      <div className="text-2xl leading-relaxed text-gray-900 dark:text-gray-100 font-japanese">
+      <div className="text-2xl leading-relaxed text-gray-900 dark:text-gray-100 font-japanese pr-12">
         {renderWords(sentence.words, true)}
       </div>
       <div className="text-lg leading-relaxed text-gray-500 dark:text-gray-400 font-sans italic">

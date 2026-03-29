@@ -26,6 +26,44 @@ export async function textToSpeech(text: string): Promise<string | null> {
 }
 
 /**
+ * Fallback to browser's built-in speech synthesis
+ */
+export function speakWithBrowser(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!('speechSynthesis' in window)) {
+      console.error("Speech synthesis not supported in this browser.");
+      resolve();
+      return;
+    }
+
+    const speak = () => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      
+      const voices = window.speechSynthesis.getVoices();
+      const jaVoice = voices.find(v => v.lang.startsWith('ja'));
+      if (jaVoice) {
+        utterance.voice = jaVoice;
+      }
+
+      utterance.onend = () => resolve();
+      utterance.onerror = (e) => {
+        console.error("Speech synthesis error", e);
+        resolve();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = speak;
+    } else {
+      speak();
+    }
+  });
+}
+
+/**
  * Plays raw PCM audio data from Gemini TTS
  * @param base64Data Base64 encoded PCM data (16-bit, 24kHz)
  */

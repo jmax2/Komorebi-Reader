@@ -25,7 +25,7 @@ import { Sentence, ViewMode, Word } from './types';
 import { MOCK_DATA } from './constants';
 import { SentenceBlock } from './components/SentenceBlock';
 import { Tooltip } from './components/Tooltip';
-import { translateAndParse, generateStory, textToSpeech, playPCM } from './lib/gemini';
+import { translateAndParse, generateStory, textToSpeech, playPCM, speakWithBrowser } from './lib/gemini';
 import { cn } from './lib/utils';
 
 export default function App() {
@@ -144,9 +144,19 @@ export default function App() {
       const base64Data = await textToSpeech(fullText);
       if (base64Data) {
         await playPCM(base64Data);
+      } else {
+        // Fallback to browser TTS
+        await speakWithBrowser(fullText);
       }
     } catch (err) {
       console.error("Failed to play all audio", err);
+      // Try fallback on error too
+      try {
+        const fullText = sentences.map(s => s.ja_sentence).join(' ');
+        await speakWithBrowser(fullText);
+      } catch (fallbackErr) {
+        console.error("Fallback audio failed", fallbackErr);
+      }
     } finally {
       setIsPlayingAll(false);
     }
